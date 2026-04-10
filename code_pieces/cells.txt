@@ -1,0 +1,439 @@
+
+--- Cell 0 ---
+import os
+
+base_path = "."
+
+splits = ["train", "valid", "test"]
+
+for split in splits:
+    img_path = os.path.join(base_path, split, "images")
+    lbl_path = os.path.join(base_path, split, "labels")
+    
+    num_images = len(os.listdir(img_path))
+    num_labels = len(os.listdir(lbl_path))
+    
+    print(f"{split.upper()}:")
+    print(f"  Images: {num_images}")
+    print(f"  Labels: {num_labels}")
+    print("-" * 30)
+ 
+
+--- Cell 1 ---
+from collections import Counter
+
+label_dir = "train/labels"
+counter = Counter()
+
+for file in os.listdir(label_dir):
+    with open(os.path.join(label_dir, file), "r") as f:
+        for line in f.readlines():
+            class_id = line.split()[0]
+            counter[class_id] += 1
+
+print("Class distribution in TRAIN:")
+print(counter)
+
+--- Cell 2 ---
+from ultralytics import YOLO
+
+model = YOLO("yolov8n.pt")
+
+model.train(
+    data="data.yaml",
+    epochs=3,        # small test
+    imgsz=416,       # reduce image size
+    batch=4,         # reduce batch
+    workers=0        # avoid RAM overload
+)
+
+--- Cell 3 ---
+import os
+print(os.listdir("runs/detect/train"))
+
+--- Cell 4 ---
+import os
+print(os.listdir("runs/detect/train13/weights"))
+
+--- Cell 5 ---
+model.val(data="data.yaml")
+
+--- Cell 6 ---
+from ultralytics import YOLO
+import os
+
+model = YOLO("runs/detect/train13/weights/best.pt")
+
+model.predict(
+    source="train/images",
+    save_crop=True,
+    save=True,
+    conf=0.25
+)
+
+--- Cell 7 ---
+import os
+import cv2
+import numpy as np
+import pandas as pd
+
+# Path to cropped images
+base_path = "runs/detect/predict/crops"
+
+data = []
+
+for class_name in os.listdir(base_path):
+    class_path = os.path.join(base_path, class_name)
+    
+    for img_file in os.listdir(class_path):
+        img_path = os.path.join(class_path, img_file)
+        
+        img = cv2.imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        # Mean and Std for each channel
+        mean = np.mean(img, axis=(0,1))
+        std = np.std(img, axis=(0,1))
+        
+        features = [
+            mean[0], mean[1], mean[2],   # R, G, B mean
+            std[0], std[1], std[2],      # R, G, B std
+        ]
+        
+        label = 0 if class_name == "authentic" else 1
+        
+        data.append(features + [label])
+
+# Create DataFrame
+columns = [
+    "mean_R", "mean_G", "mean_B",
+    "std_R", "std_G", "std_B",
+    "label"
+]
+
+df = pd.DataFrame(data, columns=columns)
+
+df.head()
+
+--- Cell 8 ---
+from skimage.feature import graycomatrix, graycoprops
+from skimage.color import rgb2gray
+
+texture_data = []
+
+for class_name in os.listdir(base_path):
+    class_path = os.path.join(base_path, class_name)
+    
+    for img_file in os.listdir(class_path):
+        img_path = os.path.join(class_path, img_file)
+        
+        img = cv2.imread(img_path)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Reduce levels for stability
+        gray = cv2.resize(gray, (256, 256))
+        
+        glcm = graycomatrix(gray, distances=[1], angles=[0], levels=256, symmetric=True, normed=True)
+        
+        contrast = graycoprops(glcm, 'contrast')[0, 0]
+        energy = graycoprops(glcm, 'energy')[0, 0]
+        homogeneity = graycoprops(glcm, 'homogeneity')[0, 0]
+        correlation = graycoprops(glcm, 'correlation')[0, 0]
+        
+        label = 0 if class_name == "authentic" else 1
+        
+        texture_data.append([contrast, energy, homogeneity, correlation, label])
+
+texture_columns = [
+    "contrast", "energy", "homogeneity", "correlation", "label"
+]
+
+texture_df = pd.DataFrame(texture_data, columns=texture_columns)
+
+texture_df.head()
+
+--- Cell 9 ---
+shape_data = []
+
+for class_name in os.listdir(base_path):
+    class_path = os.path.join(base_path, class_name)
+    
+    for img_file in os.listdir(class_path):
+        img_path = os.path.join(class_path, img_file)
+        
+        img = cv2.imread(img_path)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Threshold to get object mask
+        _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if len(contours) > 0:
+            cnt = max(contours, key=cv2.contourArea)
+            
+            area = cv2.contourArea(cnt)
+            perimeter = cv2.arcLength(cnt, True)
+            
+            x, y, w, h = cv2.boundingRect(cnt)
+            aspect_ratio = float(w) / h if h != 0 else 0
+            
+        else:
+            area = 0
+            perimeter = 0
+            aspect_ratio = 0
+        
+        label = 0 if class_name == "authentic" else 1
+        
+        shape_data.append([area, perimeter, aspect_ratio, label])
+
+shape_columns = ["area", "perimeter", "aspect_ratio", "label"]
+
+shape_df = pd.DataFrame(shape_data, columns=shape_columns)
+
+shape_df
+
+--- Cell 10 ---
+# Drop duplicate label columns from texture and shape
+texture_df_no_label = texture_df.drop(columns=["label"])
+shape_df_no_label = shape_df.drop(columns=["label"])
+
+# Combine all features
+final_df = pd.concat(
+    [df.drop(columns=["label"]), 
+     texture_df_no_label, 
+     shape_df_no_label,
+     df["label"]], 
+    axis=1
+)
+
+final_df.head()
+
+--- Cell 11 ---
+print("Total samples:", len(final_df))
+print("Total features (including label):", final_df.shape[1])
+
+--- Cell 12 ---
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+
+# Separate features and label
+X = final_df.drop(columns=["label"])
+y = final_df["label"]
+
+# Train-test split (important)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# Normalize features
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+print("Training samples:", X_train_scaled.shape)
+print("Testing samples:", X_test_scaled.shape)
+
+--- Cell 13 ---
+from sklearn.ensemble import RandomForestClassifier
+
+rf_model = RandomForestClassifier(
+    n_estimators=200,
+    max_depth=None,
+    class_weight='balanced',
+    random_state=42
+)
+
+rf_model.fit(X_train_scaled, y_train)
+
+y_pred_rf = rf_model.predict(X_test_scaled)
+
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+
+print("Accuracy:", accuracy_score(y_test, y_pred_rf))
+print("\nClassification Report:\n")
+print(classification_report(y_test, y_pred_rf))
+print("\nConfusion Matrix:\n")
+print(confusion_matrix(y_test, y_pred_rf))
+
+--- Cell 14 ---
+from sklearn.svm import SVC
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+
+# Create SVM model
+svm_model = SVC(
+    kernel='rbf',
+    C=10,
+    gamma='scale',
+    class_weight='balanced'  # VERY IMPORTANT
+)
+
+# Train
+svm_model.fit(X_train_scaled, y_train)
+
+# Predict
+y_pred = svm_model.predict(X_test_scaled)
+
+# Evaluate
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("\nClassification Report:\n")
+print(classification_report(y_test, y_pred))
+
+print("\nConfusion Matrix:\n")
+print(confusion_matrix(y_test, y_pred))
+
+--- Cell 15 ---
+import joblib
+
+joblib.dump(svm_model, "svm_model.pkl")
+joblib.dump(scaler, "scaler.pkl")
+joblib.dump(xgb_model, "xgb_model.pkl")
+
+--- Cell 16 ---
+import cv2
+import numpy as np
+import joblib
+from ultralytics import YOLO
+from skimage.feature import graycomatrix, graycoprops
+import pandas as pd
+
+# -----------------------------
+# Load trained models
+# -----------------------------
+yolo_model = YOLO("runs/detect/train13/weights/best.pt")
+svm_model = joblib.load("svm_model.pkl")
+model = joblib.load("xgb_model.pkl")
+scaler = joblib.load("scaler.pkl")
+
+# -----------------------------
+# Function to extract features
+# -----------------------------
+def extract_features(img):
+
+    # ----- COLOR FEATURES -----
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    mean = np.mean(img_rgb, axis=(0,1))
+    std = np.std(img_rgb, axis=(0,1))
+
+    # ----- TEXTURE FEATURES -----
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.resize(gray, (256, 256))
+
+    glcm = graycomatrix(gray,
+                        distances=[1],
+                        angles=[0],
+                        levels=256,
+                        symmetric=True,
+                        normed=True)
+
+    contrast = graycoprops(glcm, 'contrast')[0, 0]
+    energy = graycoprops(glcm, 'energy')[0, 0]
+    homogeneity = graycoprops(glcm, 'homogeneity')[0, 0]
+    correlation = graycoprops(glcm, 'correlation')[0, 0]
+
+    # ----- SHAPE FEATURES -----
+    _, thresh = cv2.threshold(gray, 127, 255,
+                              cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    contours, _ = cv2.findContours(thresh,
+                                   cv2.RETR_EXTERNAL,
+                                   cv2.CHAIN_APPROX_SIMPLE)
+
+    if len(contours) > 0:
+        cnt = max(contours, key=cv2.contourArea)
+        area = cv2.contourArea(cnt)
+        perimeter = cv2.arcLength(cnt, True)
+        x, y, w, h = cv2.boundingRect(cnt)
+        aspect_ratio = float(w) / h if h != 0 else 0
+    else:
+        area = 0
+        perimeter = 0
+        aspect_ratio = 0
+
+    features = [
+        mean[0], mean[1], mean[2],
+        std[0], std[1], std[2],
+        contrast, energy, homogeneity, correlation,
+        area, perimeter, aspect_ratio
+    ]
+
+    return np.array(features).reshape(1, -1)
+
+
+# -----------------------------
+# Predict Function
+# -----------------------------
+def predict_image(image_path):
+
+    # Step 1: YOLO detection
+    results = yolo_model(image_path)
+
+    if len(results[0].boxes) == 0:
+        print("No medicine detected.")
+        return
+
+    # Take first detected box
+    box = results[0].boxes.xyxy[0].cpu().numpy().astype(int)
+
+    img = cv2.imread(image_path)
+    crop = img[box[1]:box[3], box[0]:box[2]]
+
+    # Step 2: Extract features
+    features = extract_features(crop)
+
+    # Step 3: Scale features
+    feature_names = [
+    "mean_R", "mean_G", "mean_B",
+    "std_R", "std_G", "std_B",
+    "contrast", "energy", "homogeneity", "correlation",
+    "area", "perimeter", "aspect_ratio"
+    ]
+
+    features_df = pd.DataFrame(features, columns=feature_names)
+    features_scaled = scaler.transform(features_df)
+
+    # Step 4: Predict
+    prob = model.predict_proba(features_scaled)[0]
+
+    prediction = 1 if prob[1] > 0.30 else 0
+    confidence = prob[prediction]
+
+    if prediction == 0:
+        print("Prediction: AUTHENTIC")
+    else:
+        print("Prediction: COUNTERFEIT")
+
+    print("Confidence score:", confidence)
+
+predict_image("./ind_test/fake1.jpg")
+
+--- Cell 17 ---
+
+
+--- Cell 18 ---
+from xgboost import XGBClassifier
+from sklearn.metrics import classification_report, confusion_matrix
+
+xgb_model = XGBClassifier(
+    n_estimators=300,
+    max_depth=6,
+    learning_rate=0.05,
+    scale_pos_weight=6,  # IMPORTANT (imbalance handling)
+    random_state=42
+)
+
+xgb_model.fit(X_train_scaled, y_train)
+
+y_pred = xgb_model.predict(X_test_scaled)
+
+print(classification_report(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred))
+
+--- Cell 19 ---
+
+
+--- Cell 20 ---
+
+
+--- Cell 21 ---
+

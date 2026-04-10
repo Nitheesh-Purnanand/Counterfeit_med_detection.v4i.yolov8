@@ -1,0 +1,825 @@
+import os
+
+base_path = "."
+
+splits = ["train", "valid", "test"]
+
+for split in splits:
+    img_path = os.path.join(base_path, split, "images")
+    lbl_path = os.path.join(base_path, split, "labels")
+    
+    num_images = len(os.listdir(img_path))
+    num_labels = len(os.listdir(lbl_path))
+    
+    print(f"{split.upper()}:")
+    print(f"  Images: {num_images}")
+    print(f"  Labels: {num_labels}")
+    print("-" * 30)
+
+
+TRAIN:
+  Images: 4072
+  Labels: 4072
+------------------------------
+VALID:
+  Images: 122
+  Labels: 122
+------------------------------
+TEST:
+  Images: 65
+  Labels: 65
+------------------------------
+
+
+
+
+from collections import Counter
+
+label_dir = "train/labels"
+counter = Counter()
+
+for file in os.listdir(label_dir):
+    with open(os.path.join(label_dir, file), "r") as f:
+        for line in f.readlines():
+            class_id = line.split()[0]
+            counter[class_id] += 1
+
+print("Class distribution in TRAIN:")
+print(counter)
+
+Class distribution in TRAIN:
+Counter({'0': 6696, '1': 567})
+
+
+
+from ultralytics import YOLO
+
+model = YOLO("yolov8n.pt")
+
+model.train(
+    data="data.yaml",
+    epochs=3,        # small test
+    imgsz=416,       # reduce image size
+    batch=4,         # reduce batch
+    workers=0        # avoid RAM overload
+)
+
+ap_class_index: array([0, 1])
+box: ultralytics.utils.metrics.Metric object
+confusion_matrix: <ultralytics.utils.metrics.ConfusionMatrix object at 0x0000018A65C98770>
+curves: ['Precision-Recall(B)', 'F1-Confidence(B)', 'Precision-Confidence(B)', 'Recall-Confidence(B)']
+curves_results: [[array([          0,    0.001001,    0.002002,    0.003003,    0.004004,    0.005005,    0.006006,    0.007007,    0.008008,    0.009009,     0.01001,    0.011011,    0.012012,    0.013013,    0.014014,    0.015015,    0.016016,    0.017017,    0.018018,    0.019019,     0.02002,    0.021021,    0.022022,    0.023023,
+          0.024024,    0.025025,    0.026026,    0.027027,    0.028028,    0.029029,     0.03003,    0.031031,    0.032032,    0.033033,    0.034034,    0.035035,    0.036036,    0.037037,    0.038038,    0.039039,     0.04004,    0.041041,    0.042042,    0.043043,    0.044044,    0.045045,    0.046046,    0.047047,
+          0.048048,    0.049049,     0.05005,    0.051051,    0.052052,    0.053053,    0.054054,    0.055055,    0.056056,    0.057057,    0.058058,    0.059059,     0.06006,    0.061061,    0.062062,    0.063063,    0.064064,    0.065065,    0.066066,    0.067067,    0.068068,    0.069069,     0.07007,    0.071071,
+          0.072072,    0.073073,    0.074074,    0.075075,    0.076076,    0.077077,    0.078078,    0.079079,     0.08008,    0.081081,    0.082082,    0.083083,    0.084084,    0.085085,    0.086086,    0.087087,    0.088088,    0.089089,     0.09009,    0.091091,    0.092092,    0.093093,    0.094094,    0.095095,
+          0.096096,    0.097097,    0.098098,    0.099099,      0.1001,      0.1011,      0.1021,      0.1031,      0.1041,     0.10511,     0.10611,     0.10711,     0.10811,     0.10911,     0.11011,     0.11111,     0.11211,     0.11311,     0.11411,     0.11512,     0.11612,     0.11712,     0.11812,     0.11912,
+           0.12012,     0.12112,     0.12212,     0.12312,     0.12412,     0.12513,     0.12613,     0.12713,     0.12813,     0.12913,     0.13013,     0.13113,     0.13213,     0.13313,     0.13413,     0.13514,     0.13614,     0.13714,     0.13814,     0.13914,     0.14014,     0.14114,     0.14214,     0.14314,
+           0.14414,     0.14515,     0.14615,     0.14715,     0.14815,     0.14915,     0.15015,     0.15115,     0.15215,     0.15315,     0.15415,     0.15516,     0.15616,     0.15716,     0.15816,     0.15916,     0.16016,     0.16116,     0.16216,     0.16316,     0.16416,     0.16517,     0.16617,     0.16717,
+           0.16817,     0.16917,     0.17017,     0.17117,     0.17217,     0.17317,     0.17417,     0.17518,     0.17618,     0.17718,     0.17818,     0.17918,     0.18018,     0.18118,     0.18218,     0.18318,     0.18418,     0.18519,     0.18619,     0.18719,     0.18819,     0.18919,     0.19019,     0.19119,
+           0.19219,     0.19319,     0.19419,      0.1952,      0.1962,      0.1972,      0.1982,      0.1992,      0.2002,      0.2012,      0.2022,      0.2032,      0.2042,     0.20521,     0.20621,     0.20721,     0.20821,     0.20921,     0.21021,     0.21121,     0.21221,     0.21321,     0.21421,     0.21522,
+           0.21622,     0.21722,     0.21822,     0.21922,     0.22022,     0.22122,     0.22222,     0.22322,     0.22422,     0.22523,     0.22623,     0.22723,     0.22823,     0.22923,     0.23023,     0.23123,     0.23223,     0.23323,     0.23423,     0.23524,     0.23624,     0.23724,     0.23824,     0.23924,
+           0.24024,     0.24124,     0.24224,     0.24324,     0.24424,     0.24525,     0.24625,     0.24725,     0.24825,     0.24925,     0.25025,     0.25125,     0.25225,     0.25325,     0.25425,     0.25526,     0.25626,     0.25726,     0.25826,     0.25926,     0.26026,     0.26126,     0.26226,     0.26326,
+           0.26426,     0.26527,     0.26627,     0.26727,     0.26827,     0.26927,     0.27027,     0.27127,     0.27227,     0.27327,     0.27427,     0.27528,     0.27628,     0.27728,     0.27828,     0.27928,     0.28028,     0.28128,     0.28228,     0.28328,     0.28428,     0.28529,     0.28629,     0.28729,
+           0.28829,     0.28929,     0.29029,     0.29129,     0.29229,     0.29329,     0.29429,      0.2953,      0.2963,      0.2973,      0.2983,      0.2993,      0.3003,      0.3013,      0.3023,      0.3033,      0.3043,     0.30531,     0.30631,     0.30731,     0.30831,     0.30931,     0.31031,     0.31131,
+           0.31231,     0.31331,     0.31431,     0.31532,     0.31632,     0.31732,     0.31832,     0.31932,     0.32032,     0.32132,     0.32232,     0.32332,     0.32432,     0.32533,     0.32633,     0.32733,     0.32833,     0.32933,     0.33033,     0.33133,     0.33233,     0.33333,     0.33433,     0.33534,
+           0.33634,     0.33734,     0.33834,     0.33934,     0.34034,     0.34134,     0.34234,     0.34334,     0.34434,     0.34535,     0.34635,     0.34735,     0.34835,     0.34935,     0.35035,     0.35135,     0.35235,     0.35335,     0.35435,     0.35536,     0.35636,     0.35736,     0.35836,     0.35936,
+           0.36036,     0.36136,     0.36236,     0.36336,     0.36436,     0.36537,     0.36637,     0.36737,     0.36837,     0.36937,     0.37037,     0.37137,     0.37237,     0.37337,     0.37437,     0.37538,     0.37638,     0.37738,     0.37838,     0.37938,     0.38038,     0.38138,     0.38238,     0.38338,
+           0.38438,     0.38539,     0.38639,     0.38739,     0.38839,     0.38939,     0.39039,     0.39139,     0.39239,     0.39339,     0.39439,      0.3954,      0.3964,      0.3974,      0.3984,      0.3994,      0.4004,      0.4014,      0.4024,      0.4034,      0.4044,     0.40541,     0.40641,     0.40741,
+           0.40841,     0.40941,     0.41041,     0.41141,     0.41241,     0.41341,     0.41441,     0.41542,     0.41642,     0.41742,     0.41842,     0.41942,     0.42042,     0.42142,     0.42242,     0.42342,     0.42442,     0.42543,     0.42643,     0.42743,     0.42843,     0.42943,     0.43043,     0.43143,
+           0.43243,     0.43343,     0.43443,     0.43544,     0.43644,     0.43744,     0.43844,     0.43944,     0.44044,     0.44144,     0.44244,     0.44344,     0.44444,     0.44545,     0.44645,     0.44745,     0.44845,     0.44945,     0.45045,     0.45145,     0.45245,     0.45345,     0.45445,     0.45546,
+...
+results_dict: {'metrics/precision(B)': 0.7205632728842438, 'metrics/recall(B)': 0.8549348291588019, 'metrics/mAP50(B)': 0.8093402767152553, 'metrics/mAP50-95(B)': 0.6301612229568315, 'fitness': 0.6301612229568315}
+save_dir: WindowsPath('D:/research papers/jenil_sir_project/Counterfeit_med_detection.v4i.yolov8/runs/detect/train13')
+speed: {'preprocess': 0.517328688326162, 'inference': 29.253085245608283, 'loss': 0.00019016395109232334, 'postprocess': 0.7685237708711448}
+stats: {'tp': [], 'conf': [], 'pred_cls': [], 'target_cls': [], 'target_img': []}
+task: 'detect'
+
+
+
+
+import os
+print(os.listdir("runs/detect/train"))
+
+['args.yaml', 'labels.jpg', 'weights']
+
+
+
+import os
+print(os.listdir("runs/detect/train13/weights"))
+
+['best.pt', 'last.pt']
+
+
+
+model.val(data="data.yaml")
+
+ultralytics.utils.metrics.DetMetrics object with attributes:
+
+ap_class_index: array([0, 1])
+box: ultralytics.utils.metrics.Metric object
+confusion_matrix: <ultralytics.utils.metrics.ConfusionMatrix object at 0x0000018A6062AD70>
+curves: ['Precision-Recall(B)', 'F1-Confidence(B)', 'Precision-Confidence(B)', 'Recall-Confidence(B)']
+curves_results: [[array([          0,    0.001001,    0.002002,    0.003003,    0.004004,    0.005005,    0.006006,    0.007007,    0.008008,    0.009009,     0.01001,    0.011011,    0.012012,    0.013013,    0.014014,    0.015015,    0.016016,    0.017017,    0.018018,    0.019019,     0.02002,    0.021021,    0.022022,    0.023023,
+          0.024024,    0.025025,    0.026026,    0.027027,    0.028028,    0.029029,     0.03003,    0.031031,    0.032032,    0.033033,    0.034034,    0.035035,    0.036036,    0.037037,    0.038038,    0.039039,     0.04004,    0.041041,    0.042042,    0.043043,    0.044044,    0.045045,    0.046046,    0.047047,
+          0.048048,    0.049049,     0.05005,    0.051051,    0.052052,    0.053053,    0.054054,    0.055055,    0.056056,    0.057057,    0.058058,    0.059059,     0.06006,    0.061061,    0.062062,    0.063063,    0.064064,    0.065065,    0.066066,    0.067067,    0.068068,    0.069069,     0.07007,    0.071071,
+          0.072072,    0.073073,    0.074074,    0.075075,    0.076076,    0.077077,    0.078078,    0.079079,     0.08008,    0.081081,    0.082082,    0.083083,    0.084084,    0.085085,    0.086086,    0.087087,    0.088088,    0.089089,     0.09009,    0.091091,    0.092092,    0.093093,    0.094094,    0.095095,
+          0.096096,    0.097097,    0.098098,    0.099099,      0.1001,      0.1011,      0.1021,      0.1031,      0.1041,     0.10511,     0.10611,     0.10711,     0.10811,     0.10911,     0.11011,     0.11111,     0.11211,     0.11311,     0.11411,     0.11512,     0.11612,     0.11712,     0.11812,     0.11912,
+           0.12012,     0.12112,     0.12212,     0.12312,     0.12412,     0.12513,     0.12613,     0.12713,     0.12813,     0.12913,     0.13013,     0.13113,     0.13213,     0.13313,     0.13413,     0.13514,     0.13614,     0.13714,     0.13814,     0.13914,     0.14014,     0.14114,     0.14214,     0.14314,
+           0.14414,     0.14515,     0.14615,     0.14715,     0.14815,     0.14915,     0.15015,     0.15115,     0.15215,     0.15315,     0.15415,     0.15516,     0.15616,     0.15716,     0.15816,     0.15916,     0.16016,     0.16116,     0.16216,     0.16316,     0.16416,     0.16517,     0.16617,     0.16717,
+           0.16817,     0.16917,     0.17017,     0.17117,     0.17217,     0.17317,     0.17417,     0.17518,     0.17618,     0.17718,     0.17818,     0.17918,     0.18018,     0.18118,     0.18218,     0.18318,     0.18418,     0.18519,     0.18619,     0.18719,     0.18819,     0.18919,     0.19019,     0.19119,
+           0.19219,     0.19319,     0.19419,      0.1952,      0.1962,      0.1972,      0.1982,      0.1992,      0.2002,      0.2012,      0.2022,      0.2032,      0.2042,     0.20521,     0.20621,     0.20721,     0.20821,     0.20921,     0.21021,     0.21121,     0.21221,     0.21321,     0.21421,     0.21522,
+           0.21622,     0.21722,     0.21822,     0.21922,     0.22022,     0.22122,     0.22222,     0.22322,     0.22422,     0.22523,     0.22623,     0.22723,     0.22823,     0.22923,     0.23023,     0.23123,     0.23223,     0.23323,     0.23423,     0.23524,     0.23624,     0.23724,     0.23824,     0.23924,
+           0.24024,     0.24124,     0.24224,     0.24324,     0.24424,     0.24525,     0.24625,     0.24725,     0.24825,     0.24925,     0.25025,     0.25125,     0.25225,     0.25325,     0.25425,     0.25526,     0.25626,     0.25726,     0.25826,     0.25926,     0.26026,     0.26126,     0.26226,     0.26326,
+           0.26426,     0.26527,     0.26627,     0.26727,     0.26827,     0.26927,     0.27027,     0.27127,     0.27227,     0.27327,     0.27427,     0.27528,     0.27628,     0.27728,     0.27828,     0.27928,     0.28028,     0.28128,     0.28228,     0.28328,     0.28428,     0.28529,     0.28629,     0.28729,
+           0.28829,     0.28929,     0.29029,     0.29129,     0.29229,     0.29329,     0.29429,      0.2953,      0.2963,      0.2973,      0.2983,      0.2993,      0.3003,      0.3013,      0.3023,      0.3033,      0.3043,     0.30531,     0.30631,     0.30731,     0.30831,     0.30931,     0.31031,     0.31131,
+           0.31231,     0.31331,     0.31431,     0.31532,     0.31632,     0.31732,     0.31832,     0.31932,     0.32032,     0.32132,     0.32232,     0.32332,     0.32432,     0.32533,     0.32633,     0.32733,     0.32833,     0.32933,     0.33033,     0.33133,     0.33233,     0.33333,     0.33433,     0.33534,
+           0.33634,     0.33734,     0.33834,     0.33934,     0.34034,     0.34134,     0.34234,     0.34334,     0.34434,     0.34535,     0.34635,     0.34735,     0.34835,     0.34935,     0.35035,     0.35135,     0.35235,     0.35335,     0.35435,     0.35536,     0.35636,     0.35736,     0.35836,     0.35936,
+           0.36036,     0.36136,     0.36236,     0.36336,     0.36436,     0.36537,     0.36637,     0.36737,     0.36837,     0.36937,     0.37037,     0.37137,     0.37237,     0.37337,     0.37437,     0.37538,     0.37638,     0.37738,     0.37838,     0.37938,     0.38038,     0.38138,     0.38238,     0.38338,
+           0.38438,     0.38539,     0.38639,     0.38739,     0.38839,     0.38939,     0.39039,     0.39139,     0.39239,     0.39339,     0.39439,      0.3954,      0.3964,      0.3974,      0.3984,      0.3994,      0.4004,      0.4014,      0.4024,      0.4034,      0.4044,     0.40541,     0.40641,     0.40741,
+           0.40841,     0.40941,     0.41041,     0.41141,     0.41241,     0.41341,     0.41441,     0.41542,     0.41642,     0.41742,     0.41842,     0.41942,     0.42042,     0.42142,     0.42242,     0.42342,     0.42442,     0.42543,     0.42643,     0.42743,     0.42843,     0.42943,     0.43043,     0.43143,
+           0.43243,     0.43343,     0.43443,     0.43544,     0.43644,     0.43744,     0.43844,     0.43944,     0.44044,     0.44144,     0.44244,     0.44344,     0.44444,     0.44545,     0.44645,     0.44745,     0.44845,     0.44945,     0.45045,     0.45145,     0.45245,     0.45345,     0.45445,     0.45546,
+...
+results_dict: {'metrics/precision(B)': 0.7205632728842438, 'metrics/recall(B)': 0.8549348291588019, 'metrics/mAP50(B)': 0.8093402767152553, 'metrics/mAP50-95(B)': 0.6301612229568315, 'fitness': 0.6301612229568315}
+save_dir: WindowsPath('D:/research papers/jenil_sir_project/Counterfeit_med_detection.v4i.yolov8/runs/detect/val')
+speed: {'preprocess': 0.5474319671028767, 'inference': 28.779144262294782, 'loss': 9.754077210778095e-05, 'postprocess': 0.6820155736097119}
+stats: {'tp': [], 'conf': [], 'pred_cls': [], 'target_cls': [], 'target_img': []}
+task: 'detect'
+
+
+
+from ultralytics import YOLO
+import os
+
+model = YOLO("runs/detect/train13/weights/best.pt")
+
+model.predict(
+    source="train/images",
+    save_crop=True,
+    save=True,
+    conf=0.25
+)
+
+
+[ultralytics.engine.results.Results object with attributes:
+ 
+ boxes: ultralytics.engine.results.Boxes object
+ keypoints: None
+ masks: None
+ names: {0: 'authentic', 1: 'counterfeit'}
+ obb: None
+ orig_img: array([[[  0,   0,   0],
+         [  0,   0,   0],
+         [  0,   0,   0],
+         ...,
+         [  0,   0,   0],
+         [  0,   0,   0],
+         [  0,   0,   0]],
+ 
+        [[255, 255, 255],
+         [255, 255, 255],
+         [255, 255, 255],
+         ...,
+         [255, 255, 255],
+         [255, 255, 255],
+         [255, 255, 255]],
+ 
+        [[253, 253, 253],
+         [253, 253, 253],
+...
+ path: 'd:\\research papers\\jenil_sir_project\\Counterfeit_med_detection.v4i.yolov8\\train\\images\\images257_jpg.rf.f7636976292e1fe71907584470ae7c0b.jpg'
+ probs: None
+ save_dir: 'D:\\research papers\\jenil_sir_project\\Counterfeit_med_detection.v4i.yolov8\\runs\\detect\\predict'
+ speed: {'preprocess': 1.9299000268802047, 'inference': 40.25650001130998, 'postprocess': 0.9681999799795449},
+ ...]
+
+
+
+
+
+ import os
+import cv2
+import numpy as np
+import pandas as pd
+
+# Path to cropped images
+base_path = "runs/detect/predict/crops"
+
+data = []
+
+for class_name in os.listdir(base_path):
+    class_path = os.path.join(base_path, class_name)
+    
+    for img_file in os.listdir(class_path):
+        img_path = os.path.join(class_path, img_file)
+        
+        img = cv2.imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        # Mean and Std for each channel
+        mean = np.mean(img, axis=(0,1))
+        std = np.std(img, axis=(0,1))
+        
+        features = [
+            mean[0], mean[1], mean[2],   # R, G, B mean
+            std[0], std[1], std[2],      # R, G, B std
+        ]
+        
+        label = 0 if class_name == "authentic" else 1
+        
+        data.append(features + [label])
+
+# Create DataFrame
+columns = [
+    "mean_R", "mean_G", "mean_B",
+    "std_R", "std_G", "std_B",
+    "label"
+]
+
+df = pd.DataFrame(data, columns=columns)
+
+df.head()
+
+
+
+mean_R	mean_G	mean_B	std_R	std_G	std_B	label
+0	165.537308	157.422370	151.679617	67.243783	76.557730	76.903178	0
+1	173.706477	171.444073	160.501374	61.571259	62.022496	65.662154	0
+2	155.764483	150.428218	142.869940	58.082626	63.396733	70.191645	0
+3	146.495541	141.184268	133.994985	61.219778	66.778094	72.502819	0
+4	207.717167	190.215065	132.335786	42.585231	53.738962	79.296688	0
+
+
+
+
+from skimage.feature import graycomatrix, graycoprops
+from skimage.color import rgb2gray
+
+texture_data = []
+
+for class_name in os.listdir(base_path):
+    class_path = os.path.join(base_path, class_name)
+    
+    for img_file in os.listdir(class_path):
+        img_path = os.path.join(class_path, img_file)
+        
+        img = cv2.imread(img_path)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Reduce levels for stability
+        gray = cv2.resize(gray, (256, 256))
+        
+        glcm = graycomatrix(gray, distances=[1], angles=[0], levels=256, symmetric=True, normed=True)
+        
+        contrast = graycoprops(glcm, 'contrast')[0, 0]
+        energy = graycoprops(glcm, 'energy')[0, 0]
+        homogeneity = graycoprops(glcm, 'homogeneity')[0, 0]
+        correlation = graycoprops(glcm, 'correlation')[0, 0]
+        
+        label = 0 if class_name == "authentic" else 1
+        
+        texture_data.append([contrast, energy, homogeneity, correlation, label])
+
+texture_columns = [
+    "contrast", "energy", "homogeneity", "correlation", "label"
+]
+
+texture_df = pd.DataFrame(texture_data, columns=texture_columns)
+
+texture_df.head()
+
+
+
+
+contrast	energy	homogeneity	correlation	label
+0	50.951057	0.080443	0.383521	0.995102	0
+1	77.594868	0.063993	0.291203	0.989483	0
+2	148.684467	0.117271	0.526677	0.979262	0
+3	155.897411	0.118840	0.523561	0.980502	0
+4	15.552344	0.104274	0.539586	0.997120	0
+
+
+
+
+
+
+shape_data = []
+
+for class_name in os.listdir(base_path):
+    class_path = os.path.join(base_path, class_name)
+    
+    for img_file in os.listdir(class_path):
+        img_path = os.path.join(class_path, img_file)
+        
+        img = cv2.imread(img_path)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Threshold to get object mask
+        _, thresh = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if len(contours) > 0:
+            cnt = max(contours, key=cv2.contourArea)
+            
+            area = cv2.contourArea(cnt)
+            perimeter = cv2.arcLength(cnt, True)
+            
+            x, y, w, h = cv2.boundingRect(cnt)
+            aspect_ratio = float(w) / h if h != 0 else 0
+            
+        else:
+            area = 0
+            perimeter = 0
+            aspect_ratio = 0
+        
+        label = 0 if class_name == "authentic" else 1
+        
+        shape_data.append([area, perimeter, aspect_ratio, label])
+
+shape_columns = ["area", "perimeter", "aspect_ratio", "label"]
+
+shape_df = pd.DataFrame(shape_data, columns=shape_columns)
+
+shape_df
+
+
+
+	area	perimeter	aspect_ratio	label
+0	544.5	98.669047	1.590909	0
+1	17720.5	1023.761534	0.384615	0
+2	56716.5	969.438599	0.967611	0
+3	56746.5	970.267026	0.967611	0
+4	7903.5	512.551296	0.333333	0
+...	...	...	...	...
+8317	26760.0	785.053823	1.633588	1
+8318	21910.5	1134.551296	4.594595	1
+8319	6225.0	1566.465071	1.396947	1
+8320	67576.5	3760.917072	2.417085	1
+8321	10239.0	416.970562	1.447059	1
+
+
+
+
+# Drop duplicate label columns from texture and shape
+texture_df_no_label = texture_df.drop(columns=["label"])
+shape_df_no_label = shape_df.drop(columns=["label"])
+
+# Combine all features
+final_df = pd.concat(
+    [df.drop(columns=["label"]), 
+     texture_df_no_label, 
+     shape_df_no_label,
+     df["label"]], 
+    axis=1
+)
+
+final_df.head()
+
+
+mean_R	mean_G	mean_B	std_R	std_G	std_B	contrast	energy	homogeneity	correlation	area	perimeter	aspect_ratio	label
+0	165.537308	157.422370	151.679617	67.243783	76.557730	76.903178	50.951057	0.080443	0.383521	0.995102	544.5	98.669047	1.590909	0
+1	173.706477	171.444073	160.501374	61.571259	62.022496	65.662154	77.594868	0.063993	0.291203	0.989483	17720.5	1023.761534	0.384615	0
+2	155.764483	150.428218	142.869940	58.082626	63.396733	70.191645	148.684467	0.117271	0.526677	0.979262	56716.5	969.438599	0.967611	0
+3	146.495541	141.184268	133.994985	61.219778	66.778094	72.502819	155.897411	0.118840	0.523561	0.980502	56746.5	970.267026	0.967611	0
+4	207.717167	190.215065	132.335786	42.585231	53.738962	79.296688	15.552344	0.104274	0.539586	0.997120	7903.5	512.551296	0.333333	0
+
+
+
+print("Total samples:", len(final_df))
+print("Total features (including label):", final_df.shape[1])
+
+
+Total samples: 8322
+Total features (including label): 14
+
+
+
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+
+# Separate features and label
+X = final_df.drop(columns=["label"])
+y = final_df["label"]
+
+# Train-test split (important)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# Normalize features
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+print("Training samples:", X_train_scaled.shape)
+print("Testing samples:", X_test_scaled.shape)
+
+
+
+Training samples: (6657, 13)
+Testing samples: (1665, 13)
+
+
+
+from sklearn.ensemble import RandomForestClassifier
+
+rf_model = RandomForestClassifier(
+    n_estimators=200,
+    max_depth=None,
+    class_weight='balanced',
+    random_state=42
+)
+
+rf_model.fit(X_train_scaled, y_train)
+
+y_pred_rf = rf_model.predict(X_test_scaled)
+
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+
+print("Accuracy:", accuracy_score(y_test, y_pred_rf))
+print("\nClassification Report:\n")
+print(classification_report(y_test, y_pred_rf))
+print("\nConfusion Matrix:\n")
+print(confusion_matrix(y_test, y_pred_rf))
+
+
+
+Accuracy: 0.9405405405405406
+
+Classification Report:
+
+              precision    recall  f1-score   support
+
+           0       0.94      0.99      0.97      1443
+           1       0.94      0.59      0.73       222
+
+    accuracy                           0.94      1665
+   macro avg       0.94      0.79      0.85      1665
+weighted avg       0.94      0.94      0.93      1665
+
+
+Confusion Matrix:
+
+[[1435    8]
+ [  91  131]]
+
+
+
+
+
+from sklearn.svm import SVC
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+
+# Create SVM model
+svm_model = SVC(
+    kernel='rbf',
+    C=10,
+    gamma='scale',
+    class_weight='balanced'  # VERY IMPORTANT
+)
+
+# Train
+svm_model.fit(X_train_scaled, y_train)
+
+# Predict
+y_pred = svm_model.predict(X_test_scaled)
+
+# Evaluate
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("\nClassification Report:\n")
+print(classification_report(y_test, y_pred))
+
+print("\nConfusion Matrix:\n")
+print(confusion_matrix(y_test, y_pred))
+
+
+
+Accuracy: 0.9201201201201201
+
+Classification Report:
+
+              precision    recall  f1-score   support
+
+           0       0.99      0.92      0.95      1443
+           1       0.64      0.94      0.76       222
+
+    accuracy                           0.92      1665
+   macro avg       0.81      0.93      0.86      1665
+weighted avg       0.94      0.92      0.93      1665
+
+
+Confusion Matrix:
+
+[[1323  120]
+ [  13  209]]
+
+
+import joblib
+
+joblib.dump(svm_model, "svm_model.pkl")
+joblib.dump(scaler, "scaler.pkl")
+
+
+import cv2
+import numpy as np
+import joblib
+from ultralytics import YOLO
+from skimage.feature import graycomatrix, graycoprops
+
+# -----------------------------
+# Load trained models
+# -----------------------------
+yolo_model = YOLO("runs/detect/train13/weights/best.pt")
+svm_model = joblib.load("svm_model.pkl")
+scaler = joblib.load("scaler.pkl")
+
+# -----------------------------
+# Function to extract features
+# -----------------------------
+def extract_features(img):
+
+    # ----- COLOR FEATURES -----
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    mean = np.mean(img_rgb, axis=(0,1))
+    std = np.std(img_rgb, axis=(0,1))
+
+    # ----- TEXTURE FEATURES -----
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.resize(gray, (256, 256))
+
+    glcm = graycomatrix(gray,
+                        distances=[1],
+                        angles=[0],
+                        levels=256,
+                        symmetric=True,
+                        normed=True)
+
+    contrast = graycoprops(glcm, 'contrast')[0, 0]
+    energy = graycoprops(glcm, 'energy')[0, 0]
+    homogeneity = graycoprops(glcm, 'homogeneity')[0, 0]
+    correlation = graycoprops(glcm, 'correlation')[0, 0]
+
+    # ----- SHAPE FEATURES -----
+    _, thresh = cv2.threshold(gray, 127, 255,
+                              cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    contours, _ = cv2.findContours(thresh,
+                                   cv2.RETR_EXTERNAL,
+                                   cv2.CHAIN_APPROX_SIMPLE)
+
+    if len(contours) > 0:
+        cnt = max(contours, key=cv2.contourArea)
+        area = cv2.contourArea(cnt)
+        perimeter = cv2.arcLength(cnt, True)
+        x, y, w, h = cv2.boundingRect(cnt)
+        aspect_ratio = float(w) / h if h != 0 else 0
+    else:
+        area = 0
+        perimeter = 0
+        aspect_ratio = 0
+
+    features = [
+        mean[0], mean[1], mean[2],
+        std[0], std[1], std[2],
+        contrast, energy, homogeneity, correlation,
+        area, perimeter, aspect_ratio
+    ]
+
+    return np.array(features).reshape(1, -1)
+
+
+# -----------------------------
+# Predict Function
+# -----------------------------
+def predict_image(image_path):
+
+    # Step 1: YOLO detection
+    results = yolo_model(image_path)
+
+    if len(results[0].boxes) == 0:
+        print("No medicine detected.")
+        return
+
+    # Take first detected box
+    box = results[0].boxes.xyxy[0].cpu().numpy().astype(int)
+
+    img = cv2.imread(image_path)
+    crop = img[box[1]:box[3], box[0]:box[2]]
+
+    # Step 2: Extract features
+    features = extract_features(crop)
+
+    # Step 3: Scale features
+    features_scaled = scaler.transform(features)
+
+    # Step 4: Predict
+    prediction = svm_model.predict(features_scaled)[0]
+    confidence = svm_model.decision_function(features_scaled)[0]
+
+    if prediction == 0:
+        print("Prediction: AUTHENTIC")
+    else:
+        print("Prediction: COUNTERFEIT")
+
+    print("Confidence score:", confidence)
+
+predict_image("./ind_test/fake5.jpg")
+
+
+
+image 1/1 d:\research papers\jenil_sir_project\Counterfeit_med_detection.v4i.yolov8\ind_test\fake5.jpg: 288x416 1 authentic, 83.8ms
+Speed: 2.4ms preprocess, 83.8ms inference, 0.9ms postprocess per image at shape (1, 3, 288, 416)
+Prediction: AUTHENTIC
+Confidence score: -0.25754451111280874
+c:\Users\HP\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: X does not have valid feature names, but StandardScaler was fitted with feature names
+  warnings.warn(
+
+
+
+from xgboost import XGBClassifier
+from sklearn.metrics import classification_report, confusion_matrix
+
+xgb_model = XGBClassifier(
+    n_estimators=300,
+    max_depth=6,
+    learning_rate=0.05,
+    scale_pos_weight=6,  # IMPORTANT (imbalance handling)
+    random_state=42
+)
+
+xgb_model.fit(X_train_scaled, y_train)
+
+y_pred = xgb_model.predict(X_test_scaled)
+
+print(classification_report(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred))
+
+
+
+precision    recall  f1-score   support
+
+           0       0.98      0.98      0.98      1443
+           1       0.87      0.84      0.86       222
+
+    accuracy                           0.96      1665
+   macro avg       0.92      0.91      0.92      1665
+weighted avg       0.96      0.96      0.96      1665
+
+[[1415   28]
+ [  35  187]]
+
+
+
+ scale_pos_weight = 1443 / 222   # ≈ 6.5
+
+ from xgboost import XGBClassifier
+
+model = XGBClassifier(
+    scale_pos_weight=6.5,
+    random_state=42,
+    use_label_encoder=False,
+    eval_metric='logloss'
+)
+
+
+
+from sklearn.model_selection import RandomizedSearchCV
+
+param_dist = {
+    'n_estimators': [100, 200, 300, 500],
+    'max_depth': [3, 5, 7, 10],
+    'learning_rate': [0.01, 0.05, 0.1, 0.2],
+    'subsample': [0.7, 0.8, 1.0],
+    'colsample_bytree': [0.7, 0.8, 1.0],
+    'gamma': [0, 0.1, 0.3, 0.5],
+    'min_child_weight': [1, 3, 5]
+}
+
+search = RandomizedSearchCV(
+    estimator=model,
+    param_distributions=param_dist,
+    n_iter=30,
+    scoring='f1',   # IMPORTANT: focus on F1
+    cv=5,
+    verbose=2,
+    n_jobs=-1
+)
+
+search.fit(X_train, y_train)
+
+best_model = search.best_estimator_
+
+
+from sklearn.model_selection import RandomizedSearchCV
+
+param_dist = {
+    'n_estimators': [100, 200, 300, 500],
+    'max_depth': [3, 5, 7, 10],
+    'learning_rate': [0.01, 0.05, 0.1, 0.2],
+    'subsample': [0.7, 0.8, 1.0],
+    'colsample_bytree': [0.7, 0.8, 1.0],
+    'gamma': [0, 0.1, 0.3, 0.5],
+    'min_child_weight': [1, 3, 5]
+}
+
+search = RandomizedSearchCV(
+    estimator=model,
+    param_distributions=param_dist,
+    n_iter=30,
+    scoring='f1',   # IMPORTANT: focus on F1
+    cv=5,
+    verbose=2,
+    n_jobs=-1
+)
+
+search.fit(X_train, y_train)
+
+best_model = search.best_estimator_
+
+
+y_probs = best_model.predict_proba(X_test)[:, 1]
+
+import numpy as np
+from sklearn.metrics import f1_score
+
+best_thresh = 0
+best_f1 = 0
+
+for t in np.arange(0.1, 0.9, 0.05):
+    y_pred = (y_probs > t).astype(int)
+    f1 = f1_score(y_test, y_pred)
+    
+    if f1 > best_f1:
+        best_f1 = f1
+        best_thresh = t
+
+print("Best Threshold:", best_thresh)
+
+
+Best Threshold: 0.30000000000000004
+
+
+
+from sklearn.metrics import classification_report, confusion_matrix
+
+y_pred = (y_probs > best_thresh).astype(int)
+
+print(classification_report(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred))
+
+precision    recall  f1-score   support
+
+           0       0.98      0.98      0.98      1443
+           1       0.87      0.87      0.87       222
+
+    accuracy                           0.96      1665
+   macro avg       0.92      0.92      0.92      1665
+weighted avg       0.96      0.96      0.96      1665
+
+[[1413   30]
+ [  29  193]]
+
+
+
+
+
+ from xgboost import XGBClassifier
+
+# Calculate class weight
+scale_pos_weight = 1443 / 222   # use your actual values
+
+model = XGBClassifier(
+    n_estimators=200,
+    max_depth=5,
+    learning_rate=0.1,
+    subsample=0.8,
+    colsample_bytree=0.8,
+    scale_pos_weight=scale_pos_weight,  # IMPORTANT
+    random_state=42,
+    use_label_encoder=False,
+    eval_metric='logloss'
+)
+
+
+model.fit(X_train, y_train)
+
+from sklearn.metrics import classification_report, confusion_matrix
+
+y_pred = model.predict(X_test)
+
+print(classification_report(y_test, y_pred))
+print(confusion_matrix(y_test, y_pred))
+
+
+ precision    recall  f1-score   support
+
+           0       0.98      0.98      0.98      1443
+           1       0.87      0.85      0.86       222
+
+    accuracy                           0.96      1665
+   macro avg       0.92      0.92      0.92      1665
+weighted avg       0.96      0.96      0.96      1665
+
+[[1415   28]
+ [  33  189]]

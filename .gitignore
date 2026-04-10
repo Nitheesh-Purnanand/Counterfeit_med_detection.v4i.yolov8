@@ -1,0 +1,12 @@
+test/
+train/
+valid/
+runs/
+.venv/
+ind_test/
+.ipynb_checkpoints/
+__pycache__/
+*.pt
+*.pkl
+*.json
+test_resnet.py
