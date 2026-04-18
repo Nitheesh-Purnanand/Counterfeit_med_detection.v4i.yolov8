@@ -1,18 +1,16 @@
-CLASSIFICATION REPORT — CNN Model on Test Set
-======================================================================
-                 precision    recall  f1-score   support
+                precision    recall  f1-score   support
 
-        Battery     0.0000    0.0000    0.0000       106
-       Keyboard     0.0000    0.0000    0.0000       111
-      Microwave     0.0000    0.0000    0.0000        41
-         Mobile     0.0000    0.0000    0.0000       128
-          Mouse     0.0000    0.0000    0.0000       134
-            PCB     0.2362    1.0000    0.3821       201
-         Player     0.0000    0.0000    0.0000        21
-        Printer     0.0000    0.0000    0.0000         1
-     Television     0.0000    0.0000    0.0000        20
-Washing Machine     0.0000    0.0000    0.0000        88
+       Battery     0.9286    0.8667    0.8966        30
+      Keyboard     0.8235    0.4667    0.5957        30
+     Microwave     0.8333    0.8333    0.8333        30
+        Mobile     0.8286    0.9667    0.8923        30
+         Mouse     0.5789    0.7333    0.6471        30
+           PCB     1.0000    0.8000    0.8889        30
+        Player     1.0000    0.9000    0.9474        30
+       Printer     0.9375    1.0000    0.9677        30
+    Television     0.6750    0.9000    0.7714        30
+WashingMachine     0.9655    0.9333    0.9492        30
 
-       accuracy                         0.2362       851
-      macro avg     0.0236    0.1000    0.0382       851
-   weighted avg     0.0558    0.2362    0.0903       851
+      accuracy                         0.8400       300
+     macro avg     0.8571    0.8400    0.8390       300
+  weighted avg     0.8571    0.8400    0.8390       300
