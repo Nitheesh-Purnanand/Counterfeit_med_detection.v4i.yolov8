@@ -10,3 +10,7 @@ __pycache__/
 *.pkl
 *.json
 test_resnet.py
+results/
+augmented_crops/
+augmented_train_only/
+*.npz
