@@ -1,14 +1,14 @@
 """
-ewaste_cnn_paper.py -- E-Waste Classification (Final v7)
+ewaste_cnn_paper.py -- E-Waste Classification (Final v9)
 Based on: IOP Conf. Ser.: Earth Environ. Sci. 1529 (2025) 012032
 
 Full dataset (5967 imgs) + WeightedRandomSampler for balanced batches
-+ ResNet18 + SGD + TTA
++ ResNet50 V2 + MixUp (Phase 2) + Calibrated Augmentation + TTA
 """
 
 import os
 os.environ['TORCH_HOME'] = 'D:\\torch_cache'
-import sys, json, random, copy
+import sys, json, random, copy, math
 import numpy as np
 from collections import defaultdict, Counter
 
@@ -25,8 +25,8 @@ if not os.path.isdir(DATASET_DIR):
     DATASET_DIR = os.path.join(SCRIPT_DIR, "dataset")
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "results")
 
-IMG_SIZE = 224
-BATCH_SIZE = 16
+IMG_SIZE = 224          # Standard ImageNet size — keeps compute fast on 6GB GPU
+BATCH_SIZE = 32         # 16 -> 32 for stable gradients with MixUp
 NUM_CLASSES = 10
 SEED = 42
 
@@ -37,37 +37,85 @@ def set_seed(s):
     random.seed(s); np.random.seed(s); torch.manual_seed(s)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(s)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.enabled = False
+        torch.backends.cudnn.deterministic = False   # Allow non-deterministic for speed
+        torch.backends.cudnn.benchmark = True         # Auto-tune conv algorithms
 
 # =================================================================
-# MODEL
+# MODEL -- ResNet50 V2 with 2-layer classifier head
 # =================================================================
 
 class EWasteCNN(nn.Module):
     def __init__(self, num_classes=NUM_CLASSES, pretrained=True):
         super().__init__()
-        weights = models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None
-        backbone = models.resnet18(weights=weights)
-        self.features = nn.Sequential(*list(backbone.children())[:-1])
+        weights = models.ResNet50_Weights.IMAGENET1K_V2 if pretrained else None
+        backbone = models.resnet50(weights=weights)
+        # Split backbone for progressive unfreezing
+        self.layer0 = nn.Sequential(*list(backbone.children())[:4])   # conv1, bn1, relu, maxpool
+        self.layer1 = backbone.layer1  # 64->256
+        self.layer2 = backbone.layer2  # 256->512
+        self.layer3 = backbone.layer3  # 512->1024
+        self.layer4 = backbone.layer4  # 1024->2048
+        self.avgpool = backbone.avgpool
         self.classifier = nn.Sequential(
             nn.Flatten(),
-            nn.Dropout(0.4),
+            nn.Linear(2048, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.3),
             nn.Linear(512, num_classes),
         )
 
     def freeze_backbone(self):
-        for p in self.features.parameters(): p.requires_grad = False
+        """Freeze entire backbone."""
+        for layer in [self.layer0, self.layer1, self.layer2, self.layer3, self.layer4]:
+            for p in layer.parameters(): p.requires_grad = False
+
+    def unfreeze_top_layers(self):
+        """Unfreeze only layer3 + layer4 (deep features). Keep early layers frozen."""
+        for layer in [self.layer0, self.layer1, self.layer2]:
+            for p in layer.parameters(): p.requires_grad = False
+        for layer in [self.layer3, self.layer4]:
+            for p in layer.parameters(): p.requires_grad = True
 
     def unfreeze_backbone(self):
-        for p in self.features.parameters(): p.requires_grad = True
+        """Unfreeze all backbone layers."""
+        for layer in [self.layer0, self.layer1, self.layer2, self.layer3, self.layer4]:
+            for p in layer.parameters(): p.requires_grad = True
 
     def forward(self, x):
-        return self.classifier(self.features(x))
+        x = self.layer0(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = self.avgpool(x)
+        return self.classifier(x)
 
 # =================================================================
-# DATA WITH BALANCED SAMPLING
+# MIXUP (Phase 2 only)
+# =================================================================
+
+def mixup_data(x, y, alpha=0.2):
+    """MixUp: blend pairs of images and labels to reduce overfitting."""
+    if alpha > 0:
+        lam = np.random.beta(alpha, alpha)
+    else:
+        lam = 1.0
+    lam = max(lam, 1 - lam)  # Ensure lam >= 0.5
+
+    batch_size = x.size(0)
+    index = torch.randperm(batch_size, device=x.device)
+
+    mixed_x = lam * x + (1 - lam) * x[index]
+    y_a, y_b = y, y[index]
+    return mixed_x, y_a, y_b, lam
+
+def mixup_criterion(criterion, pred, y_a, y_b, lam):
+    """MixUp loss: weighted combination of losses for both label sets."""
+    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
+
+# =================================================================
+# DATA WITH BALANCED SAMPLING + CALIBRATED AUGMENTATION
 # =================================================================
 
 def get_train_transform():
@@ -79,6 +127,7 @@ def get_train_transform():
         transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.1),
         transforms.ToTensor(),
         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+        transforms.RandomErasing(p=0.15, scale=(0.02, 0.12)),
     ])
 
 def get_eval_transform():
@@ -89,32 +138,43 @@ def get_eval_transform():
     ])
 
 def get_tta_transforms():
-    """5 augmentations for Test-Time Augmentation."""
+    """7 augmentations for Test-Time Augmentation."""
     return [
-        transforms.Compose([  # Original
+        transforms.Compose([  # 1. Original
             transforms.Resize((IMG_SIZE, IMG_SIZE)),
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)]),
-        transforms.Compose([  # Horizontal flip
+        transforms.Compose([  # 2. Horizontal flip
             transforms.Resize((IMG_SIZE, IMG_SIZE)),
             transforms.RandomHorizontalFlip(p=1.0),
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)]),
-        transforms.Compose([  # Center crop
+        transforms.Compose([  # 3. Center crop
             transforms.Resize((IMG_SIZE+32, IMG_SIZE+32)),
             transforms.CenterCrop(IMG_SIZE),
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)]),
-        transforms.Compose([  # Top-left crop
+        transforms.Compose([  # 4. Top-left crop
             transforms.Resize((IMG_SIZE+32, IMG_SIZE+32)),
             transforms.FiveCrop(IMG_SIZE),
             transforms.Lambda(lambda crops: crops[0]),
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)]),
-        transforms.Compose([  # Bottom-right crop
+        transforms.Compose([  # 5. Bottom-right crop
             transforms.Resize((IMG_SIZE+32, IMG_SIZE+32)),
             transforms.FiveCrop(IMG_SIZE),
             transforms.Lambda(lambda crops: crops[3]),
+            transforms.ToTensor(),
+            transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)]),
+        transforms.Compose([  # 6. Slight scale-down
+            transforms.Resize((IMG_SIZE+64, IMG_SIZE+64)),
+            transforms.CenterCrop(IMG_SIZE),
+            transforms.ToTensor(),
+            transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)]),
+        transforms.Compose([  # 7. Horizontal flip + center crop
+            transforms.Resize((IMG_SIZE+32, IMG_SIZE+32)),
+            transforms.CenterCrop(IMG_SIZE),
+            transforms.RandomHorizontalFlip(p=1.0),
             transforms.ToTensor(),
             transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD)]),
     ]
@@ -174,20 +234,44 @@ def load_data():
 # TRAINING
 # =================================================================
 
-def train_one_epoch(model, loader, criterion, optimizer, device):
+# AMP scaler for mixed precision training (FP16 on RTX 3050)
+amp_scaler = torch.amp.GradScaler('cuda')
+
+def train_one_epoch(model, loader, criterion, optimizer, device, use_mixup=False, mixup_alpha=0.2):
     model.train()
     loss_sum, correct, total = 0.0, 0, 0
     for imgs, labels in loader:
         imgs, labels = imgs.to(device), labels.to(device)
-        optimizer.zero_grad()
-        out = model(imgs)
-        loss = criterion(out, labels)
-        loss.backward()
-        optimizer.step()
-        loss_sum += loss.item() * imgs.size(0)
-        _, pred = out.max(1)
-        total += labels.size(0)
-        correct += pred.eq(labels).sum().item()
+        
+        if use_mixup:
+            mixed_imgs, y_a, y_b, lam = mixup_data(imgs, labels, alpha=mixup_alpha)
+            optimizer.zero_grad()
+            with torch.amp.autocast('cuda'):
+                out = model(mixed_imgs)
+                loss = mixup_criterion(criterion, out, y_a, y_b, lam)
+            amp_scaler.scale(loss).backward()
+            amp_scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            amp_scaler.step(optimizer)
+            amp_scaler.update()
+            loss_sum += loss.item() * imgs.size(0)
+            _, pred = out.max(1)
+            total += labels.size(0)
+            correct += (lam * pred.eq(y_a).sum().item() + (1 - lam) * pred.eq(y_b).sum().item())
+        else:
+            optimizer.zero_grad()
+            with torch.amp.autocast('cuda'):
+                out = model(imgs)
+                loss = criterion(out, labels)
+            amp_scaler.scale(loss).backward()
+            amp_scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            amp_scaler.step(optimizer)
+            amp_scaler.update()
+            loss_sum += loss.item() * imgs.size(0)
+            _, pred = out.max(1)
+            total += labels.size(0)
+            correct += pred.eq(labels).sum().item()
     return loss_sum / total, correct / total
 
 def evaluate(model, loader, criterion, device):
@@ -196,8 +280,9 @@ def evaluate(model, loader, criterion, device):
     with torch.no_grad():
         for imgs, labels in loader:
             imgs, labels = imgs.to(device), labels.to(device)
-            out = model(imgs)
-            loss = criterion(out, labels)
+            with torch.amp.autocast('cuda'):
+                out = model(imgs)
+                loss = criterion(out, labels)
             loss_sum += loss.item() * imgs.size(0)
             _, pred = out.max(1)
             total += labels.size(0)
@@ -205,7 +290,7 @@ def evaluate(model, loader, criterion, device):
     return loss_sum / total, correct / total
 
 def evaluate_tta(model, device, class_names):
-    """Test-Time Augmentation: average predictions across 5 views."""
+    """Test-Time Augmentation: average predictions across 7 views."""
     from PIL import Image
     model.eval()
     tta_transforms = get_tta_transforms()
@@ -228,12 +313,39 @@ def evaluate_tta(model, device, class_names):
     return np.array(all_labels), np.array(all_preds)
 
 # =================================================================
+# LEARNING RATE WARMUP SCHEDULER
+# =================================================================
+
+class WarmupCosineScheduler:
+    """Cosine annealing with linear warmup."""
+    def __init__(self, optimizer, warmup_epochs, total_epochs, eta_min=1e-6):
+        self.optimizer = optimizer
+        self.warmup_epochs = warmup_epochs
+        self.total_epochs = total_epochs
+        self.eta_min = eta_min
+        self.base_lrs = [pg['lr'] for pg in optimizer.param_groups]
+        self.current_epoch = 0
+    
+    def step(self):
+        self.current_epoch += 1
+        if self.current_epoch <= self.warmup_epochs:
+            # Linear warmup
+            factor = self.current_epoch / self.warmup_epochs
+            for pg, base_lr in zip(self.optimizer.param_groups, self.base_lrs):
+                pg['lr'] = base_lr * factor
+        else:
+            # Cosine annealing
+            progress = (self.current_epoch - self.warmup_epochs) / (self.total_epochs - self.warmup_epochs)
+            for pg, base_lr in zip(self.optimizer.param_groups, self.base_lrs):
+                pg['lr'] = self.eta_min + (base_lr - self.eta_min) * 0.5 * (1 + math.cos(math.pi * progress))
+
+# =================================================================
 # MAIN
 # =================================================================
 
 def main():
     print("=" * 60)
-    print("E-WASTE CNN v7 (Full Data + Balanced Sampling + TTA)")
+    print("E-WASTE CNN v9 (ResNet50 V2 + MixUp + Calibrated Aug + TTA)")
     print("=" * 60)
 
     set_seed(SEED)
@@ -243,11 +355,14 @@ def main():
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         print(f"\n  GPU: {torch.cuda.get_device_name(0)}")
-    print(f"  Dataset: {DATASET_DIR}\n")
+    print(f"  Dataset: {DATASET_DIR}")
+    print(f"  Image size: {IMG_SIZE}x{IMG_SIZE}")
+    print(f"  Batch size: {BATCH_SIZE}\n")
 
     loaders, class_names = load_data()
     model = EWasteCNN(pretrained=True).to(device)
-    # NO class weights - balanced sampling handles it!
+    # NO class weights - balanced sampling handles it
+    # Light label smoothing since no MixUp
     criterion = nn.CrossEntropyLoss(label_smoothing=0.05)
 
     history = {'train_loss':[], 'train_acc':[], 'val_loss':[], 'val_acc':[]}
@@ -267,18 +382,22 @@ def main():
     if torch.cuda.is_available(): torch.cuda.empty_cache()
 
     # =============== PHASE 1: Head only ===============
-    P1 = 20
+    P1 = 25
     print(f"\n{'='*60}")
     print(f"PHASE 1: Classifier Only ({P1} epochs)")
     print(f"{'='*60}\n")
     model.freeze_backbone()
     
-    opt1 = optim.SGD(filter(lambda p: p.requires_grad, model.parameters()),
-                     lr=0.01, momentum=0.9, weight_decay=1e-4)
-    sched1 = optim.lr_scheduler.CosineAnnealingLR(opt1, T_max=P1, eta_min=1e-5)
+    trainable_p1 = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"  Trainable (head only): {trainable_p1:,}\n")
+
+    opt1 = optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()),
+                       lr=1e-3, weight_decay=1e-2)
+    sched1 = optim.lr_scheduler.CosineAnnealingLR(opt1, T_max=P1, eta_min=1e-6)
 
     for ep in range(1, P1+1):
-        tl, ta = train_one_epoch(model, loaders['train'], criterion, opt1, device)
+        tl, ta = train_one_epoch(model, loaders['train'], criterion, opt1, device,
+                                 use_mixup=False)
         vl, va = evaluate(model, loaders['valid'], criterion, device)
         sched1.step()
         history['train_loss'].append(tl); history['train_acc'].append(ta)
@@ -288,34 +407,37 @@ def main():
 
     print(f"\n  Phase 1 best: {best_val_acc:.4f}")
 
-    # =============== PHASE 2: Full fine-tune ===============
-    P2 = 60
+    # =============== PHASE 2: Fine-tune top layers (layer3 + layer4) ===============
+    P2 = 40
     print(f"\n{'='*60}")
-    print(f"PHASE 2: Full Fine-Tuning ({P2} epochs)")
+    print(f"PHASE 2: Fine-Tune Top Layers ({P2} epochs, AdamW)")
     print(f"{'='*60}\n")
 
     if best_wts: model.load_state_dict(best_wts)
-    model.unfreeze_backbone()
+    model.unfreeze_top_layers()  # Only layer3 + layer4
     t = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"  Trainable: {t:,}\n")
+    print(f"  Trainable (layer3+layer4+head): {t:,}\n")
 
-    opt2 = optim.SGD([
-        {'params': model.features.parameters(), 'lr': 5e-4},
-        {'params': model.classifier.parameters(), 'lr': 5e-3},
-    ], momentum=0.9, weight_decay=1e-4)
-    sched2 = optim.lr_scheduler.CosineAnnealingLR(opt2, T_max=P2, eta_min=1e-6)
+    opt2 = optim.AdamW([
+        {'params': model.layer3.parameters(), 'lr': 5e-5},
+        {'params': model.layer4.parameters(), 'lr': 1e-4},
+        {'params': model.classifier.parameters(), 'lr': 5e-4},
+    ], weight_decay=1e-2)
+    sched2 = optim.lr_scheduler.CosineAnnealingLR(opt2, T_max=P2, eta_min=1e-7)
 
-    patience, pctr = 20, 0
+    patience, pctr = 15, 0
     for ep in range(1, P2+1):
         gep = P1 + ep
-        tl, ta = train_one_epoch(model, loaders['train'], criterion, opt2, device)
+        tl, ta = train_one_epoch(model, loaders['train'], criterion, opt2, device,
+                                 use_mixup=False)  # No MixUp — clean fine-tuning
         vl, va = evaluate(model, loaders['valid'], criterion, device)
         sched2.step()
         history['train_loss'].append(tl); history['train_acc'].append(ta)
         history['val_loss'].append(vl); history['val_acc'].append(va)
         is_best = save_best(gep, va)
         m = " *BEST*" if is_best else ""
-        print(f"  Epoch {gep:2d}/{P1+P2} | T: {tl:.4f}/{ta:.4f} | V: {vl:.4f}/{va:.4f}{m}")
+        cur_lr = opt2.param_groups[1]['lr']  # layer4 LR
+        print(f"  Epoch {gep:2d}/{P1+P2} | T: {tl:.4f}/{ta:.4f} | V: {vl:.4f}/{va:.4f} | lr: {cur_lr:.6f}{m}")
         pctr = 0 if is_best else pctr + 1
         if pctr >= patience:
             print(f"\n  EarlyStopping at epoch {gep}."); break
@@ -326,7 +448,7 @@ def main():
     test_loss, test_acc = evaluate(model, loaders['test'], criterion, device)
     print(f"\n  Standard Test: {test_acc:.4f} ({test_acc*100:.1f}%)")
 
-    print("  Running TTA (5 views)...")
+    print("  Running TTA (7 views)...")
     y_true, y_pred = evaluate_tta(model, device, class_names)
     tta_acc = np.mean(y_true == y_pred)
     print(f"  TTA Test:     {tta_acc:.4f} ({tta_acc*100:.1f}%)")

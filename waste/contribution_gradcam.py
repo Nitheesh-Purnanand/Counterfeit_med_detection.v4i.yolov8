@@ -37,7 +37,7 @@ if not os.path.isdir(DATASET_DIR):
 GRADCAM_DIR = os.path.join(RESULTS_DIR, "gradcam")
 
 MODEL_PATH = os.path.join(RESULTS_DIR, "best_ewaste_model.pth")
-IMG_SIZE = 180
+IMG_SIZE = 256
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
