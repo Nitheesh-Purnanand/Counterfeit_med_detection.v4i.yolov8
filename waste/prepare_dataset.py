@@ -32,7 +32,7 @@ except ImportError:
 # Source dataset (YOLOv8 format)
 YOLO_DATASET_DIR = os.path.join(
     os.path.dirname(__file__),
-    "E-Waste Dataset.v44-fix-annotations-of-some-bar-phones-incorrectly-labelled-as-smartphones.yolov8"
+    "yolo_dataset"
 )
 
 # Output classification dataset
