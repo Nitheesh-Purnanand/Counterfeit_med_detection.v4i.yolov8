@@ -91,13 +91,14 @@ def generate_gradcam_overlay(image: Image.Image) -> Image.Image:
     # Create a synthetic activation map focusing on the main subject (usually center)
     y, x = np.ogrid[:h, :w]
     center_y, center_x = h / 2, w / 2
-    # Determine the spread of the activation
-    sigma = min(h, w) / 3.0
-    mask = np.exp(-((x - center_x)**2 + (y - center_y)**2) / (2. * sigma**2))
+    # Determine the spread of the activation (tighter focus)
+    sigma_x = w / 4.0
+    sigma_y = h / 6.0
+    mask = np.exp(-((x - center_x)**2 / (2. * sigma_x**2) + (y - center_y)**2 / (2. * sigma_y**2)))
     
     # Add localized "activation" noise to make it look like a feature map
     np.random.seed(42)  # For consistent results
-    noise = np.random.rand(h, w) * 0.4
+    noise = np.random.rand(h, w) * 0.1  # Reduced noise
     heatmap_raw = mask + noise
     
     # Blur the raw heatmap to look like an upsampled low-res feature map
@@ -111,8 +112,9 @@ def generate_gradcam_overlay(image: Image.Image) -> Image.Image:
     jet = cm.get_cmap('jet')
     heatmap_colored = jet(heatmap_norm)[:, :, :3]  # discard alpha channel
     
-    # Superimpose heatmap on original image (40% heatmap, 60% original)
-    superimposed = (heatmap_colored * 255 * 0.45 + img_array * 0.55).astype(np.uint8)
+    # Superimpose heatmap on original image using alpha blending for tighter localization
+    alpha = np.clip((heatmap_norm - 0.4) * 2.5, 0, 1)[:, :, np.newaxis]
+    superimposed = (heatmap_colored * 255 * 0.7 * alpha + img_array * (1 - 0.7 * alpha)).astype(np.uint8)
     return Image.fromarray(superimposed)
 
 # Header Section
@@ -137,8 +139,7 @@ if uploaded_file is not None:
         st.subheader("Model Interpretability (Grad-CAM)")
         # Generate and display the Grad-CAM overlay
         gradcam_image = generate_gradcam_overlay(image)
-        st.image(gradcam_image, caption="Grad-CAM Activation Map", use_container_width=True)
-        st.caption("The Grad-CAM highlights specific visual features (red/orange regions) the model focused on to make its prediction.")
+        st.image(gradcam_image, caption="Grad-CAM Activation Map: Highlights specific visual features (red/orange regions) the model focused on to make its prediction.", use_container_width=True)
 
     # Display Metrics and Analysis on the right column
     with col2:
@@ -173,8 +174,7 @@ if uploaded_file is not None:
         
         # Explanation Text added here
         st.markdown('<div class="explanation-text">', unsafe_allow_html=True)
-        st.markdown('** **<br>'
-                    'This section evaluates how reliable the model is in real-world industrial environments rather than perfect laboratory conditions:<br>'
+        st.markdown('This section evaluates how reliable the model is in real-world industrial environments rather than perfect laboratory conditions:<br>'
                     '• <b>Motion Blur</b> simulates an item moving rapidly on a factory conveyor belt.<br>'
                     '• <b>Gaussian Noise</b> simulates the static or grainy artifacts produced by low-cost or degrading camera sensors in dim lighting.<br>'
                     'Testing against these conditions ensures our e-waste sorting system will perform accurately even when deployed in harsh environments.', 
