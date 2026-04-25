@@ -142,126 +142,117 @@ if uploaded is not None:
                     cv2.rectangle(annotated,(x1,y1-th-10),(x1+tw+6,y1),blue,-1)
                     cv2.putText(annotated,cls_label,(x1+3,y1-5),
                                 cv2.FONT_HERSHEY_SIMPLEX,0.8,(255,255,255),2)
-        st.image(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB),
-                 caption=f"YOLOv8 Detection — {len(crops)} region(s) found",
-                 use_container_width=True)
+        _,det_col,_ = st.columns([1,2,1])
+        with det_col:
+            st.image(cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB),
+                     caption=f"YOLOv8 Detection — {len(crops)} region(s) found",
+                     use_container_width=True)
     else:
         st.info("YOLOv8 not available — using full image.")
         st.image(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB), width=400)
     if not crops: crops = [img_bgr]
 
-    # ── Process each crop ─────────────────────────────────────────────────
-    for ci, crop_img in enumerate(crops):
-        if len(crops) > 1: st.markdown(f"---\n### Region {ci+1}")
+    # ── Process Detected Region ───────────────────────────────────────────
+    crop_img = crops[0]
 
-        # ── Feature Extraction ────────────────────────────────────────────
-        st.markdown("### Feature Extraction")
-        feat_vec = extract_features(crop_img)
-        # Show cropped region with red bounding box + label (like reference)
-        disp = crop_img.copy()
-        h_c, w_c = disp.shape[:2]
-        red = (0, 0, 255)  # BGR red
-        cv2.rectangle(disp, (2,2), (w_c-3, h_c-3), red, 3)
-        lbl_text = "detected"
-        (tw,th),_ = cv2.getTextSize(lbl_text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-        cv2.rectangle(disp, (2, 2), (2+tw+8, 2+th+10), red, -1)
-        cv2.putText(disp, lbl_text, (6, 2+th+5),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
+    # ── Feature Extraction ────────────────────────────────────────────────
+    st.markdown("### Feature Extraction")
+    feat_vec = extract_features(crop_img)
 
-        fc1, fc2 = st.columns([1, 2])
-        fc1.image(cv2.cvtColor(disp, cv2.COLOR_BGR2RGB),
-                  caption="Detected Region", use_container_width=True)
-        fc2.markdown(f"""<div class="glass-card">
-            <h4>Feature Extraction Complete</h4>
-            <p><b>{len(feat_vec)}</b> features extracted across 5 groups:</p>
-            <div>{''.join(f'<span class="tag" style="margin:3px;">{n} ({d})</span>' for n,d in FEATURE_GROUPS)}</div>
+    fc1, fc2 = st.columns([1, 2])
+    fc1.image(cv2.cvtColor(crop_img, cv2.COLOR_BGR2RGB),
+              caption="Analyzed Region", use_container_width=True)
+    fc2.markdown(f"""<div class="glass-card">
+        <h4>Feature Extraction Complete</h4>
+        <p><b>{len(feat_vec)}</b> features extracted across 5 groups:</p>
+        <div>{''.join(f'<span class="tag" style="margin:3px;">{n} ({d})</span>' for n,d in FEATURE_GROUPS)}</div>
+    </div>""", unsafe_allow_html=True)
+
+    # ── Classification ────────────────────────────────────────────────────
+    st.markdown("### Classification")
+    feat_scaled = scaler.transform(feat_vec.reshape(1,-1))
+    proba = model.predict_proba(feat_scaled)[0]
+    pred_cls = int(np.argmax(proba)); conf = float(proba[pred_cls])
+    css_cls = "result-authentic" if pred_cls==0 else "result-counterfeit"
+    color = "#14967f" if pred_cls==0 else "#d63031"
+    icon = "&#10003;" if pred_cls==0 else "&#10007;"
+
+    r1,r2,r3 = st.columns([2,1,1])
+    with r1:
+        st.markdown(f"""<div class="{css_cls}">
+            <div style="font-size:2.5rem; color:{color};">{icon}</div>
+            <div class="metric-value" style="color:{color};">{CLASS_NAMES[pred_cls]}</div>
+            <div class="metric-label">Prediction</div>
+        </div>""", unsafe_allow_html=True)
+    with r2:
+        st.markdown(f"""<div class="glass-card" style="text-align:center;">
+            <div class="metric-value" style="color:{color};">{conf*100:.1f}%</div>
+            <div class="metric-label">Confidence</div>
+        </div>""", unsafe_allow_html=True)
+    with r3:
+        risk = "LOW" if pred_cls==0 else ("HIGH" if conf>0.7 else "MEDIUM")
+        rc = "#14967f" if risk=="LOW" else ("#d63031" if risk=="HIGH" else "#e17055")
+        st.markdown(f"""<div class="glass-card" style="text-align:center;">
+            <div class="metric-value" style="color:{rc};">{risk}</div>
+            <div class="metric-label">Risk Level</div>
         </div>""", unsafe_allow_html=True)
 
-        # ── Classification ────────────────────────────────────────────────
-        st.markdown("### Classification")
-        feat_scaled = scaler.transform(feat_vec.reshape(1,-1))
-        proba = model.predict_proba(feat_scaled)[0]
-        pred_cls = int(np.argmax(proba)); conf = float(proba[pred_cls])
-        css_cls = "result-authentic" if pred_cls==0 else "result-counterfeit"
-        color = "#14967f" if pred_cls==0 else "#d63031"
-        icon = "&#10003;" if pred_cls==0 else "&#10007;"
+    pb1,pb2 = st.columns(2)
+    pb1.progress(float(proba[0]), text=f"Authentic: {proba[0]*100:.1f}%")
+    pb2.progress(float(proba[1]), text=f"Counterfeit: {proba[1]*100:.1f}%")
 
-        r1,r2,r3 = st.columns([2,1,1])
-        with r1:
-            st.markdown(f"""<div class="{css_cls}">
-                <div style="font-size:2.5rem; color:{color};">{icon}</div>
-                <div class="metric-value" style="color:{color};">{CLASS_NAMES[pred_cls]}</div>
-                <div class="metric-label">Prediction</div>
-            </div>""", unsafe_allow_html=True)
-        with r2:
-            st.markdown(f"""<div class="glass-card" style="text-align:center;">
-                <div class="metric-value" style="color:{color};">{conf*100:.1f}%</div>
-                <div class="metric-label">Confidence</div>
-            </div>""", unsafe_allow_html=True)
-        with r3:
-            risk = "LOW" if pred_cls==0 else ("HIGH" if conf>0.7 else "MEDIUM")
-            rc = "#14967f" if risk=="LOW" else ("#d63031" if risk=="HIGH" else "#e17055")
-            st.markdown(f"""<div class="glass-card" style="text-align:center;">
-                <div class="metric-value" style="color:{rc};">{risk}</div>
-                <div class="metric-label">Risk Level</div>
-            </div>""", unsafe_allow_html=True)
+    # ── Feature Importance ────────────────────────────────────────────────
+    st.markdown("### Explainability")
+    imp = model.feature_importances_; off=0; gi={}
+    for n,d in FEATURE_GROUPS: gi[n]=float(np.sum(imp[off:off+d])); off+=d
+    fig,ax = plt.subplots(figsize=(7,2.5))
+    fig.patch.set_facecolor("#f1f9ff"); ax.set_facecolor("#f1f9ff")
+    ax.barh(list(gi.keys()), list(gi.values()),
+            color=["#14967f","#095d7e","#e2fcd6","#ccecee","#14967f"],
+            edgecolor="#095d7e", linewidth=0.5)
+    ax.set_xlabel("Importance", fontsize=9)
+    ax.set_title("Feature Group Importance", fontsize=11, fontweight="bold", color="#095d7e")
+    ax.tick_params(labelsize=8)
+    for s in ax.spines.values(): s.set_color("#ccecee")
+    plt.tight_layout(); st.pyplot(fig); plt.close(fig)
+    top_f = max(gi, key=gi.get)
+    st.markdown(f"""<div class="glass-card">
+        The model's decision relied most on <b>{top_f}</b> features,
+        which capture {'color distribution' if 'Color' in top_f
+        else 'structural/texture'} patterns of the medicine packaging.
+    </div>""", unsafe_allow_html=True)
 
-        pb1,pb2 = st.columns(2)
-        pb1.progress(float(proba[0]), text=f"Authentic: {proba[0]*100:.1f}%")
-        pb2.progress(float(proba[1]), text=f"Counterfeit: {proba[1]*100:.1f}%")
+    # ── OCR + Medicine Info ───────────────────────────────────────────────
+    st.markdown("### Medicine Identification")
+    med_match = None
+    # Run OCR on FULL original image for better text detection
+    ocr_texts = ocr_read(ocr_reader, img_bgr)
+    if not ocr_texts:
+        ocr_texts = ocr_read(ocr_reader, crop_img)
+    if ocr_texts:
+        st.markdown("**Detected text:**")
+        for t,c in ocr_texts[:10]:
+            st.markdown(f'<span class="tag">{t} ({c*100:.0f}%)</span>',
+                        unsafe_allow_html=True)
 
-        # ── Feature Importance ────────────────────────────────────────────
-        st.markdown("### Explainability")
-        imp = model.feature_importances_; off=0; gi={}
-        for n,d in FEATURE_GROUPS: gi[n]=float(np.sum(imp[off:off+d])); off+=d
-        fig,ax = plt.subplots(figsize=(7,2.5))
-        fig.patch.set_facecolor("#f1f9ff"); ax.set_facecolor("#f1f9ff")
-        ax.barh(list(gi.keys()), list(gi.values()),
-                color=["#14967f","#095d7e","#e2fcd6","#ccecee","#14967f"],
-                edgecolor="#095d7e", linewidth=0.5)
-        ax.set_xlabel("Importance", fontsize=9)
-        ax.set_title("Feature Group Importance", fontsize=11, fontweight="bold", color="#095d7e")
-        ax.tick_params(labelsize=8)
-        for s in ax.spines.values(): s.set_color("#ccecee")
-        plt.tight_layout(); st.pyplot(fig); plt.close(fig)
-        top_f = max(gi, key=gi.get)
-        st.markdown(f"""<div class="glass-card">
-            The model's decision relied most on <b>{top_f}</b> features,
-            which capture {'color distribution' if 'Color' in top_f
-            else 'structural/texture'} patterns of the medicine packaging.
-        </div>""", unsafe_allow_html=True)
+    # Auto-match from OCR first
+    if ocr_texts and med_db is not None:
+        sorted_t = sorted(ocr_texts, key=lambda x: len(x[0]), reverse=True)
+        for t,_ in sorted_t[:5]:
+            med_match = fuzzy_match(t, med_db)
+            if med_match is not None: break
 
-        # ── OCR + Medicine Info ───────────────────────────────────────────
-        st.markdown("### Medicine Identification")
-        med_match = None
-        # Run OCR on FULL original image for better text detection
-        ocr_texts = ocr_read(ocr_reader, img_bgr)
-        if not ocr_texts:
-            ocr_texts = ocr_read(ocr_reader, crop_img)
-        if ocr_texts:
-            st.markdown("**Detected text:**")
-            for t,c in ocr_texts[:10]:
-                st.markdown(f'<span class="tag">{t} ({c*100:.0f}%)</span>',
-                            unsafe_allow_html=True)
+    # Manual dropdown - search all (might be slow but avoids missing data)
+    st.markdown("**Select medicine manually:**")
+    if med_db is not None:
+        all_meds = med_db["name"].dropna().drop_duplicates().tolist()
+        manual_pick = st.selectbox("Search / Select medicine", [""] + all_meds, key="med_dd_main")
+        if manual_pick:
+            med_match = med_db[med_db["name"]==manual_pick].iloc[0]
 
-        # Auto-match from OCR first
-        if ocr_texts and med_db is not None:
-            sorted_t = sorted(ocr_texts, key=lambda x: len(x[0]), reverse=True)
-            for t,_ in sorted_t[:5]:
-                med_match = fuzzy_match(t, med_db)
-                if med_match is not None: break
-
-        # Manual dropdown - search all (might be slow but avoids missing data)
-        st.markdown("**Select medicine manually:**")
-        if med_db is not None:
-            all_meds = med_db["name"].dropna().drop_duplicates().tolist()
-            manual_pick = st.selectbox("Search / Select medicine", [""] + all_meds, key=f"med_dd_{ci}")
-            if manual_pick:
-                med_match = med_db[med_db["name"]==manual_pick].iloc[0]
-
-        # Display medicine info
-        if med_match is not None:
-            _show_medicine_info(med_match, pred_cls)
+    # Display medicine info
+    if med_match is not None:
+        _show_medicine_info(med_match, pred_cls)
 
 else:
     # Landing

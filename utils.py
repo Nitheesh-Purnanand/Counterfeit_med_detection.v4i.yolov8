@@ -18,15 +18,21 @@ FEATURE_GROUPS = [("Color Histogram",512),("LBP Texture",26),
 CUSTOM_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-.stApp { background: #f1f9ff; }
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; color-scheme: light; }
+.stApp { background: #f1f9ff; color-scheme: light; }
+.stApp, .stApp * { color-scheme: light; }
 section[data-testid="stSidebar"] {
     background: linear-gradient(180deg, #095d7e 0%, #14967f 100%) !important;
 }
 section[data-testid="stSidebar"] * { color: #e2fcd6 !important; }
 section[data-testid="stSidebar"] .stMarkdown a { color: #e2fcd6 !important; }
 h1, h2, h3, h4 { color: #095d7e !important; }
-p, li, span, label { color: #333 !important; }
+p, li, span, label, div { color: #333 !important; }
+section[data-testid="stSidebar"] p,
+section[data-testid="stSidebar"] li,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] div { color: #e2fcd6 !important; }
 
 .hero-title {
     font-size: 2.2rem; font-weight: 800; color: #095d7e !important;
@@ -34,17 +40,19 @@ p, li, span, label { color: #333 !important; }
 }
 .hero-sub { font-size: 0.95rem; color: #555 !important; margin-bottom: 1.2rem; }
 .glass-card {
-    background: #ffffff; border: 1px solid #ccecee;
+    background: #ffffff !important; border: 1px solid #ccecee;
     border-radius: 14px; padding: 1.3rem;
     box-shadow: 0 4px 20px rgba(9,93,126,0.08); margin-bottom: 0.8rem;
 }
+.glass-card * { color: #333 !important; }
+.glass-card h4 { color: #095d7e !important; }
 .result-authentic {
-    background: linear-gradient(135deg, #e2fcd6, #ccecee);
+    background: linear-gradient(135deg, #e2fcd6, #ccecee) !important;
     border: 2px solid #14967f; border-radius: 14px;
     padding: 1.8rem; text-align: center;
 }
 .result-counterfeit {
-    background: linear-gradient(135deg, #ffe0e0, #fff0f0);
+    background: linear-gradient(135deg, #ffe0e0, #fff0f0) !important;
     border: 2px solid #d63031; border-radius: 14px;
     padding: 1.8rem; text-align: center;
 }
@@ -59,6 +67,15 @@ p, li, span, label { color: #333 !important; }
     padding: 0.5rem 0.8rem; margin: 0.25rem 0; border-radius: 8px;
     background: rgba(255,255,255,0.3); border-left: 3px solid #e2fcd6;
     font-size: 0.82rem;
+}
+[data-testid="stFileUploadDropzone"], [data-testid="stFileUploaderDropzone"], [data-testid="stFileUploader"] > section {
+    background-color: #ffffff !important;
+}
+[data-testid="stFileUploadDropzone"] *, [data-testid="stFileUploaderDropzone"] *, [data-testid="stFileUploader"] * {
+    color: #333 !important;
+}
+[data-testid="stMainBlockContainer"] {
+    background: #f1f9ff !important;
 }
 </style>
 """
